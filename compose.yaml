@@ -1,4 +1,4 @@
-# Yubal and Syncthing share the same music library volume. In Coolify, route
+# Yubal and Syncthing share the same music library directory. In Coolify, route
 # the Yubal domain to port 8000 and (optionally) a separate Syncthing domain to
 # port 8384; Syncthing's GUI remains its device-management interface.
 services:
@@ -11,14 +11,18 @@ services:
       PGID: "1000"
       TZ: ${TZ:-Europe/Rome}
     volumes:
-      - syncthing_config:/config
-      - syncthing_music:/data1
+      - ./syncthing-config:/config
+      - /yubalSyncthingMusicData:/data
     ports:
       - "100.127.249.145:22000:22000/tcp"
       - "100.127.249.145:22000:22000/udp"
       - "100.127.249.145:21027:21027/udp"
     healthcheck:
-      test: [CMD-SHELL, "curl -fkLsS -m 2 http://127.0.0.1:8384/rest/noauth/health | grep -o --color=never OK || exit 1"]
+      test:
+        [
+          CMD-SHELL,
+          "curl -fkLsS -m 2 http://127.0.0.1:8384/rest/noauth/health | grep -o --color=never OK || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -42,16 +46,15 @@ services:
       YUBAL_TZ: Europe/Rome
       YUBAL_JOB_TIMEOUT_SECONDS: "99999"
     volumes:
-      - syncthing_music:/app/data
-      - yubal:/app/config
+      - /yubalData:/app/data
+      - ./yubalConfig:/app/config
     healthcheck:
-      test: [CMD-SHELL, 'python -c "import urllib.request; urllib.request.urlopen(\"http://localhost:8000/\")" || exit 1']
+      test:
+        [
+          CMD-SHELL,
+          'python -c "import urllib.request; urllib.request.urlopen(\"http://localhost:8000/\")" || exit 1',
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
-
-volumes:
-  syncthing_config:
-  syncthing_music:
-  yubal:
