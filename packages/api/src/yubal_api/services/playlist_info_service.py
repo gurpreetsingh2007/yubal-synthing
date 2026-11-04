@@ -41,7 +41,36 @@ class PlaylistInfoService:
         Args:
             cookies_path: Optional path to cookies.txt for authenticated requests.
         """
-        self._client = YTMusicClient(cookies_path=cookies_path)
+        self._cookies_path = cookies_path
+        self._client: YTMusicClient | None = None
+        self._cookies_fingerprint: tuple[bool, int | None, int | None] | None = None
+
+    def _get_client(self) -> YTMusicClient:
+        """Return a client built from the current cookies file.
+
+        The service is retained for the lifetime of the API process. Cookies
+        can be uploaded after startup, so caching a client created before that
+        upload leaves subscription validation unauthenticated even though
+        download jobs use the newly uploaded file.
+        """
+        path = self._cookies_path
+        if path is None:
+            fingerprint = (False, None, None)
+            cookies_path = None
+        else:
+            try:
+                stat = path.stat()
+            except FileNotFoundError:
+                fingerprint = (False, None, None)
+                cookies_path = None
+            else:
+                fingerprint = (True, stat.st_mtime_ns, stat.st_size)
+                cookies_path = path
+
+        if self._client is None or fingerprint != self._cookies_fingerprint:
+            self._client = YTMusicClient(cookies_path=cookies_path)
+            self._cookies_fingerprint = fingerprint
+        return self._client
 
     def get_playlist_metadata(self, url: str) -> PlaylistMetadata:
         """Get the metadata of a playlist from its URL.
@@ -60,7 +89,7 @@ class PlaylistInfoService:
             UpstreamAPIError: If API request fails (502).
         """
         playlist_id = parse_playlist_id(url)
-        playlist = self._client.get_playlist(playlist_id)
+        playlist = self._get_client().get_playlist(playlist_id)
         title = playlist.title or "Unknown Playlist"
         thumbnail_url = playlist.thumbnails[-1].url if playlist.thumbnails else None
         return PlaylistMetadata(title=title, thumbnail_url=thumbnail_url)
@@ -95,7 +124,8 @@ class PlaylistInfoService:
     def _get_playlist_content_info(self, url: str) -> ContentInfo:
         """Build ContentInfo from a playlist/album URL."""
         playlist_id = parse_playlist_id(url)
-        playlist = self._client.get_playlist(playlist_id)
+        client = self._get_client()
+        playlist = client.get_playlist(playlist_id)
 
         cls = self._classify(playlist)
 
@@ -136,7 +166,7 @@ class PlaylistInfoService:
 
         album_id = next(iter(album_ids))
         try:
-            album = self._client.get_album(album_id)
+            album = self._get_client().get_album(album_id)
         except Exception:
             logger.debug("Could not fetch album %s for classification", album_id)
             return _Classification(kind=ContentKind.PLAYLIST)
@@ -164,7 +194,7 @@ class PlaylistInfoService:
 
     def _get_track_content_info(self, video_id: str, url: str) -> ContentInfo:
         """Build ContentInfo from a single track URL."""
-        track = self._client.get_track(video_id)
+        track = self._get_client().get_track(video_id)
 
         return ContentInfo(
             title=track.title,

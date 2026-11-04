@@ -154,8 +154,7 @@ def create_services(repository: SubscriptionRepository) -> Services:
     )
 
     # Create subscription service
-    cookies_path = settings.cookies_file if settings.cookies_file.exists() else None
-    playlist_info = PlaylistInfoService(cookies_path=cookies_path)
+    playlist_info = PlaylistInfoService(cookies_path=settings.cookies_file)
     subscription_service = SubscriptionService(
         repository=repository,
         playlist_info=playlist_info,
