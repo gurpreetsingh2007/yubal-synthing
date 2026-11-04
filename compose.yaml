@@ -43,6 +43,7 @@ services:
       YUBAL_YTMUSIC_LYRICS_FALLBACK: "true"
       YUBAL_REPLAYGAIN: "true"
       YUBAL_DOWNLOAD_UGC: "true"
+      YUBAL_DOWNLOAD_CONCURRENCY: "3"
       YUBAL_TZ: Europe/Rome
       YUBAL_JOB_TIMEOUT_SECONDS: "99999"
     volumes:
@@ -58,3 +59,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    volumes:
+      - /yubalData:/music
+      - ./navidrome-data:/data
+    environment:
+      ND_SCANSCHEDULE: 24h
+      ND_LOGLEVEL: info
