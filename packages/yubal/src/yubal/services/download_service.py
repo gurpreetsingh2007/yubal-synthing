@@ -4,8 +4,11 @@ import logging
 import os
 import shutil
 import tempfile
+import threading
 import time
+from _thread import LockType
 from collections.abc import Iterator
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -448,27 +451,101 @@ class DownloadService:
             ...     print(f"[{progress.current}/{progress.total}]")
         """
         total = len(tracks)
+        workers = max(1, self._config.download_concurrency)
 
-        for i, track in enumerate(tracks):
-            # Check for cancellation before each download
+        # Keep the serial path simple for users who set concurrency to 1.
+        if workers == 1:
+            for i, track in enumerate(tracks):
+                if cancel_token and cancel_token.is_cancelled:
+                    raise CancellationError("Download cancelled")
+                self._log_track_start(track, i + 1, total)
+                result = self.download_track(track, cancel_token=cancel_token)
+                yield DownloadProgress(current=i + 1, total=total, result=result)
+            return
+
+        # The same output path can occur more than once in a playlist. A
+        # per-path lock preserves the existing skip-if-present behavior while
+        # allowing unrelated tracks to download concurrently.
+        path_locks: dict[Path, LockType] = {}
+        track_locks: list[LockType] = []
+        for track in tracks:
+            output_path = self._build_output_path_for_track(track)
+            track_locks.append(path_locks.setdefault(output_path, threading.Lock()))
+
+        completed = 0
+        next_index = 0
+        pending: dict[Future[DownloadResult], None] = {}
+        with ThreadPoolExecutor(
+            max_workers=workers, thread_name_prefix="yubal-download"
+        ) as executor:
+            while next_index < min(workers, total):
+                self._log_track_start(tracks[next_index], next_index + 1, total)
+                future = executor.submit(
+                    self._download_track_locked,
+                    tracks[next_index],
+                    track_locks[next_index],
+                    cancel_token,
+                )
+                pending[future] = None
+                next_index += 1
+
+            while pending:
+                if cancel_token and cancel_token.is_cancelled:
+                    for future in pending:
+                        future.cancel()
+                    raise CancellationError("Download cancelled")
+
+                done, _ = wait(
+                    pending,
+                    timeout=0.25,
+                    return_when=FIRST_COMPLETED,
+                )
+                for future in done:
+                    del pending[future]
+                    result = future.result()
+                    completed += 1
+                    yield DownloadProgress(
+                        current=completed, total=total, result=result
+                    )
+
+                    if next_index < total:
+                        if cancel_token and cancel_token.is_cancelled:
+                            raise CancellationError("Download cancelled")
+                        self._log_track_start(tracks[next_index], next_index + 1, total)
+                        new_future = executor.submit(
+                            self._download_track_locked,
+                            tracks[next_index],
+                            track_locks[next_index],
+                            cancel_token,
+                        )
+                        pending[new_future] = None
+                        next_index += 1
+
+    @staticmethod
+    def _log_track_start(track: TrackMetadata, current: int, total: int) -> None:
+        logger.info(
+            "%s - %s",
+            track.artist,
+            track.title,
+            extra={
+                "event_type": "track_download",
+                "current": current,
+                "total": total,
+                "track_title": track.title,
+                "track_artist": track.artist,
+            },
+        )
+
+    def _download_track_locked(
+        self,
+        track: TrackMetadata,
+        path_lock: LockType,
+        cancel_token: CancelToken | None,
+    ) -> DownloadResult:
+        with path_lock:
             if cancel_token and cancel_token.is_cancelled:
                 raise CancellationError("Download cancelled")
-
-            logger.info(
-                "%s - %s",
-                track.artist,
-                track.title,
-                extra={
-                    "event_type": "track_download",
-                    "current": i + 1,
-                    "total": total,
-                    "track_title": track.title,
-                    "track_artist": track.artist,
-                },
-            )
-
-            result = self.download_track(track, cancel_token=cancel_token)
-            yield DownloadProgress(current=i + 1, total=total, result=result)
+            return self.download_track(track, cancel_token=cancel_token)
 
     def download_track(
         self,

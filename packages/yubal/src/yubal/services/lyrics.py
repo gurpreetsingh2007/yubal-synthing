@@ -1,6 +1,7 @@
 """Lyrics fetching service with composable sources (lrclib, YouTube Music)."""
 
 import logging
+import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -196,18 +197,23 @@ class YouTubeMusicLyricsFetcher:
 
     def __init__(self, client: YTMusicProtocol) -> None:
         self._client = client
+        self._client_lock = threading.Lock()
 
     def fetch(self, query: LyricsQuery) -> str | None:
         if not query.video_id:
             return None
 
         try:
-            browse_id = self._client.get_lyrics_browse_id(query.video_id)
-            if not browse_id:
-                logger.debug("No YT Music lyrics tab for video %s", query.video_id)
-                return None
+            # ytmusicapi owns a shared requests session. Keep its two-step
+            # lyrics request serialized while audio and lrclib work remains
+            # concurrent across tracks.
+            with self._client_lock:
+                browse_id = self._client.get_lyrics_browse_id(query.video_id)
+                if not browse_id:
+                    logger.debug("No YT Music lyrics tab for video %s", query.video_id)
+                    return None
 
-            payload = self._client.get_lyrics(browse_id)
+                payload = self._client.get_lyrics(browse_id)
             if not payload:
                 return None
 

@@ -56,6 +56,7 @@ class JobExecutor:
         subscription_service: SubscriptionService | None = None,
         cache_path: Path | None = None,
         job_timeout: float = 1800,
+        download_concurrency: int = 3,
     ) -> None:
         """Initialize the job executor.
 
@@ -74,6 +75,7 @@ class JobExecutor:
             subscription_service: Optional service to update subscription metadata.
             cache_path: Optional directory for extraction cache.
             job_timeout: Maximum execution time per job in seconds.
+            download_concurrency: Maximum number of tracks downloaded at once.
         """
         self._job_store = job_store
         self._base_path = base_path
@@ -88,6 +90,7 @@ class JobExecutor:
         self._subscription_service = subscription_service
         self._cache_path = cache_path
         self._job_timeout = job_timeout
+        self._download_concurrency = download_concurrency
 
         # Track background tasks to prevent GC during execution
         self._background_tasks: set[asyncio.Task[Any]] = set()
@@ -242,6 +245,7 @@ class JobExecutor:
                     self._download_ugc,
                     self._cache_path,
                     self._audio_quality,
+                    self._download_concurrency,
                 )
                 result = await asyncio.to_thread(
                     sync_service.run,

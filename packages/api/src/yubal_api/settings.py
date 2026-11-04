@@ -124,6 +124,12 @@ class Settings(BaseSettings):
         ge=60,
         description="Job execution timeout in seconds",
     )
+    download_concurrency: int = Field(
+        default=3,
+        ge=1,
+        le=8,
+        description="Maximum number of tracks downloaded at once",
+    )
 
     # Timezone
     tz: Timezone = Field(default="UTC", description="Timezone for timestamps")
