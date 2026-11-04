@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*.pyo
+.venv
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Node
+web/node_modules
+web/dist
+
+# Data
+data
+beets/beets.db
+beets/beets_import.log
+beets/*.json
+ytdlp/
+
+# IDE
+.vscode
+.idea
+
+# CI/Docker
+.github
+Dockerfile
+compose.yaml
+
+# Extension
+extension
+
+# Misc
+.env*
+*.log
+.DS_Store
+tests

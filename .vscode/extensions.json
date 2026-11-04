@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "astral-sh.ty",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "charliermarsh.ruff",
+    "bradlc.vscode-tailwindcss",
+    "EditorConfig.EditorConfig",
+    "tamasfe.even-better-toml"
+  ]
+}

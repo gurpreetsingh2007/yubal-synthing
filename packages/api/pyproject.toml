@@ -1,0 +1,21 @@
+[project]
+name = "yubal-api"
+version = "0.10.0"
+dependencies = [
+  "alembic>=1.18.3",
+  "croniter>=6.0.0",
+  "fastapi>=0.127.1",
+  "pydantic-settings>=2.12.0",
+  "rich>=14.2.0",
+  "sqlmodel>=0.0.24",
+  "tzdata>=2025.1",
+  "uvicorn[standard]>=0.40.0",
+  "yubal",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.23,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build]
+package-data = { yubal_api = ["alembic.ini", "migrations/**/*"] }

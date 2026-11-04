@@ -1,0 +1,94 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+---
+name: extension-release
+
+on:
+  push:
+    tags: ["ext-v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4.2.4
+        with:
+          version: 2026.3.9
+          working_directory: extension
+      - run: just install
+        working-directory: extension
+      - run: just zip
+        working-directory: extension
+      - run: just zip-firefox
+        working-directory: extension
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#ext-}" >> "$GITHUB_OUTPUT"
+      - name: Find previous extension tag
+        id: prev-tag
+        run: |
+          prev=$(git tag --list 'ext-v*' --sort=-version:refname | grep -v "^$GITHUB_REF_NAME$" | head -1)
+          echo "tag=${prev:-none}" >> "$GITHUB_OUTPUT"
+      - name: Generate changelog
+        run: |
+          git cliff --config extension/cliff.toml --tag "$GITHUB_REF_NAME" --latest --strip all
+          prev="${{ steps.prev-tag.outputs.tag }}"
+          if [ "$prev" != "none" ]; then
+            echo "" >> CHANGES.md
+            echo "---" >> CHANGES.md
+            echo "" >> CHANGES.md
+            echo "**Full diff**:[\`${prev}...${GITHUB_REF_NAME}\`](https://github.com/${{ github.repository }}/compare/${prev}...${GITHUB_REF_NAME})" >> CHANGES.md
+          fi
+        env:
+          GIT_CLIFF_OUTPUT: CHANGES.md
+      - name: Attest Chrome zip
+        id: attest-chrome
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: extension/.output/*-chrome.zip
+      - name: Attest Firefox zip
+        id: attest-firefox
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: extension/.output/*-firefox.zip
+      - name: Attest sources zip
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: extension/.output/*-sources.zip
+      - name: Append attestation links to changelog
+        run: |
+          version="${GITHUB_REF_NAME#ext-}"
+          chrome="yubal-extension-${version}-chrome.zip"
+          firefox="yubal-extension-${version}-firefox.zip"
+          owner="${{ github.repository_owner }}"
+          {
+            echo ""
+            echo "### Build attestations"
+            echo ""
+            echo "Each zip is signed with [build provenance](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds) during CI."
+            echo ""
+            echo "| Artifact | Attestation |"
+            echo "| --- | --- |"
+            echo "| \`${chrome}\` | [view](${{ steps.attest-chrome.outputs.attestation-url }}) |"
+            echo "| \`${firefox}\` | [view](${{ steps.attest-firefox.outputs.attestation-url }}) |"
+            echo ""
+            echo "Verify with the [GitHub CLI](https://cli.github.com/):"
+            echo ""
+            echo "\`\`\`sh"
+            echo "gh attestation verify ${chrome} --owner ${owner}"
+            echo "gh attestation verify ${firefox} --owner ${owner}"
+            echo "\`\`\`"
+          } >> CHANGES.md
+      - name: Create draft release
+        uses: softprops/action-gh-release@v3
+        with:
+          draft: true
+          name: "Extension ${{ steps.version.outputs.version }}"
+          body_path: CHANGES.md
+          files: extension/.output/*.zip
