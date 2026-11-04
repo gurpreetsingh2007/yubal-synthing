@@ -12,7 +12,7 @@ services:
       TZ: ${TZ:-Europe/Rome}
     volumes:
       - ./syncthing-config:/config
-      - /yubalSyncthingMusicData:/data
+      - /yubalData:/data
     ports:
       - "100.127.249.145:22000:22000/tcp"
       - "100.127.249.145:22000:22000/udp"
