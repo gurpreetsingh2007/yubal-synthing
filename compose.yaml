@@ -39,8 +39,8 @@ services:
       YUBAL_SCHEDULER_ENABLED: "true"
       YUBAL_SCHEDULER_CRON: "0 */6 * * *"
       YUBAL_AUDIO_FORMAT: opus
-      YUBAL_FETCH_LYRICS: "true"
-      YUBAL_YTMUSIC_LYRICS_FALLBACK: "true"
+      YUBAL_FETCH_LYRICS: "false"
+      YUBAL_YTMUSIC_LYRICS_FALLBACK: "false"
       YUBAL_REPLAYGAIN: "true"
       YUBAL_DOWNLOAD_UGC: "true"
       YUBAL_DOWNLOAD_CONCURRENCY: "4"
