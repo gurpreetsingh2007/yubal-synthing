@@ -44,6 +44,7 @@ services:
       YUBAL_REPLAYGAIN: "true"
       YUBAL_DOWNLOAD_UGC: "true"
       YUBAL_DOWNLOAD_CONCURRENCY: "4"
+      YUBAL_METADATA_CONCURRENCY: "4"
       YUBAL_TZ: Europe/Rome
       YUBAL_JOB_TIMEOUT_SECONDS: "99999"
     volumes:

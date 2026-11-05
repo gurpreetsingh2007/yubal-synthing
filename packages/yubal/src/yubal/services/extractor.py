@@ -1,7 +1,9 @@
 """Metadata extraction service."""
 
 import logging
-from collections.abc import Iterator
+import threading
+from collections.abc import Callable, Iterator
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 
 from yubal.client import YTMusicProtocol
@@ -102,7 +104,14 @@ class MetadataExtractorService:
                    enriched album information
     """
 
-    def __init__(self, client: YTMusicProtocol, *, download_ugc: bool = False) -> None:
+    def __init__(
+        self,
+        client: YTMusicProtocol,
+        *,
+        download_ugc: bool = False,
+        metadata_concurrency: int = 1,
+        client_factory: Callable[[], YTMusicProtocol] | None = None,
+    ) -> None:
         """Initialize the service.
 
         Args:
@@ -113,6 +122,24 @@ class MetadataExtractorService:
         """
         self._client = client
         self._download_ugc = download_ugc
+        self._metadata_concurrency = max(1, metadata_concurrency)
+        self._client_factory = client_factory
+        self._worker_local = threading.local()
+
+    def _get_client(self) -> YTMusicProtocol:
+        """Return this worker's client, creating an isolated session if needed."""
+        if self._client_factory is None:
+            return self._client
+        client = getattr(self._worker_local, "client", None)
+        if client is None:
+            client = self._client_factory()
+            self._worker_local.client = client
+        return client
+
+    def _extract_worker_track(
+        self, track: PlaylistTrack
+    ) -> tuple[TrackMetadata | None, SkipReason | None]:
+        return self._extract_single_track(track)
 
     # ============================================================================
     # PUBLIC API - Main entry points for metadata extraction
@@ -248,76 +275,107 @@ class MetadataExtractorService:
         skipped_by_reason: dict[SkipReason, int] = {}
         skipped_tracks: list[tuple[PlaylistTrack, SkipReason]] = []
 
-        for track in tracks:
-            self._check_cancellation(cancel_token)
+        # Cache access stays on this thread (SQLite connection is not shared).
+        cached_tracks = {
+            id(track): cached
+            for track in tracks
+            if cache and (cached := cache.get(track.video_id)) is not None
+        }
+        executor = (
+            ThreadPoolExecutor(max_workers=self._metadata_concurrency)
+            if self._client_factory and self._metadata_concurrency > 1
+            else None
+        )
+        pending: dict[
+            int, Future[tuple[TrackMetadata | None, SkipReason | None]]
+        ] = {}
+        if executor:
+            pending = {
+                id(track): executor.submit(self._extract_worker_track, track)
+                for track in tracks
+                if id(track) not in cached_tracks
+            }
 
-            # Fast path: use cached metadata if available
-            cached = cache.get(track.video_id) if cache else None
-            if cached is not None:
-                logger.debug("Using cached metadata for '%s'", track.title)
+        try:
+            for track in tracks:
+                self._check_cancellation(cancel_token)
+
+                # Fast path: use cached metadata if available
+                cached = cached_tracks.get(id(track))
+                if cached is not None:
+                    logger.debug("Using cached metadata for '%s'", track.title)
+                    extracted_count += 1
+                    cached_count += 1
+                    yield ExtractProgress(
+                        current=extracted_count,
+                        total=total,
+                        playlist_total=playlist_total,
+                        skipped_by_reason=skipped_by_reason.copy(),
+                        track=cached,
+                        playlist_info=playlist_info,
+                    )
+                    continue
+
+                # Slow path: full extraction with API calls
+                try:
+                    future = pending.get(id(track))
+                    metadata, skip_reason = (
+                        future.result()
+                        if future
+                        else self._extract_single_track(track)
+                    )
+                    self._check_cancellation(cancel_token)
+                except CancellationError:
+                    raise
+                except Exception as e:
+                    logger.exception(
+                        "Failed to extract track '%s': %s",
+                        track.title,
+                        e,
+                    )
+                    # Continue with partial results instead of failing entirely
+                    fallback_type = self._determine_video_type(track)
+                    metadata, skip_reason = (
+                        self._create_fallback_metadata(
+                            track,
+                            fallback_type,
+                            match_result=(
+                                MatchResult.MATCHED
+                                if fallback_type
+                                else MatchResult.UNOFFICIAL
+                            ),
+                        ),
+                        None,
+                    )
+
+                # Skip tracks that return None with a skip reason
+                if metadata is None and skip_reason is not None:
+                    skipped_by_reason[skip_reason] = (
+                        skipped_by_reason.get(skip_reason, 0) + 1
+                    )
+                    skipped_tracks.append((track, skip_reason))
+                    logger.debug(
+                        "Skipped track '%s': %s",
+                        track.title,
+                        skip_reason.label,
+                    )
+                    continue
+
                 extracted_count += 1
-                cached_count += 1
+                if metadata and metadata.match_result == MatchResult.UNMATCHED:
+                    unmatched_count += 1
                 yield ExtractProgress(
                     current=extracted_count,
                     total=total,
                     playlist_total=playlist_total,
                     skipped_by_reason=skipped_by_reason.copy(),
-                    track=cached,
+                    track=metadata,
                     playlist_info=playlist_info,
                 )
-                continue
 
-            # Slow path: full extraction with API calls
-            try:
-                metadata, skip_reason = self._extract_single_track(track)
-                self._check_cancellation(cancel_token)
-            except CancellationError:
-                raise
-            except Exception as e:
-                logger.exception(
-                    "Failed to extract track '%s': %s",
-                    track.title,
-                    e,
-                )
-                # Continue with partial results instead of failing entirely
-                fallback_type = self._determine_video_type(track)
-                metadata, skip_reason = (
-                    self._create_fallback_metadata(
-                        track,
-                        fallback_type,
-                        match_result=(
-                            MatchResult.MATCHED
-                            if fallback_type
-                            else MatchResult.UNOFFICIAL
-                        ),
-                    ),
-                    None,
-                )
-
-            # Skip tracks that return None with a skip reason
-            if metadata is None and skip_reason is not None:
-                skipped_by_reason[skip_reason] = (
-                    skipped_by_reason.get(skip_reason, 0) + 1
-                )
-                skipped_tracks.append((track, skip_reason))
-                logger.debug(
-                    "Skipped track '%s': %s",
-                    track.title,
-                    skip_reason.label,
-                )
-                continue
-
-            extracted_count += 1
-            if metadata and metadata.match_result == MatchResult.UNMATCHED:
-                unmatched_count += 1
-            yield ExtractProgress(
-                current=extracted_count,
-                total=total,
-                playlist_total=playlist_total,
-                skipped_by_reason=skipped_by_reason.copy(),
-                track=metadata,
-                playlist_info=playlist_info,
-            )
+        finally:
+            if executor:
+                executor.shutdown(wait=True, cancel_futures=True)
 
         # Structured extraction summary — the extractor owns this log
         # Merge unavailable track reasons into a combined skip dict for stats
@@ -618,7 +676,7 @@ class MetadataExtractorService:
         album: Album | None = None
         if album_id:
             try:
-                album = self._client.get_album(album_id)
+                album = self._get_client().get_album(album_id)
             except Exception as e:
                 logger.debug("Failed to fetch album %s: %s", album_id, e)
 
@@ -704,7 +762,7 @@ class MetadataExtractorService:
         if not query:
             raise TrackParseError("Empty search query: no artists or title")
 
-        results = self._client.search_songs(query)
+        results = self._get_client().search_songs(query)
 
         if not results:
             return None
@@ -1045,7 +1103,7 @@ class MetadataExtractorService:
             album_artists=[a.name for a in track.artists],
             track_number=None,
             total_tracks=None,
-            year=self._client.get_upload_year(track.video_id),
+            year=self._get_client().get_upload_year(track.video_id),
             cover_url=_get_square_thumbnail(track.thumbnails),
             video_type=video_type,
             duration_seconds=track.duration_seconds,

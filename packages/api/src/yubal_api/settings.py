@@ -130,6 +130,12 @@ class Settings(BaseSettings):
         le=8,
         description="Maximum number of tracks downloaded at once",
     )
+    metadata_concurrency: int = Field(
+        default=3,
+        ge=1,
+        le=8,
+        description="Maximum number of tracks enriched concurrently",
+    )
 
     # Timezone
     tz: Timezone = Field(default="UTC", description="Timezone for timestamps")

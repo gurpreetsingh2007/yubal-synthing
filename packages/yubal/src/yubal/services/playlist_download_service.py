@@ -100,12 +100,18 @@ class PlaylistDownloadService:
         self._config = config
 
         # Create client if needed
+        owns_client = client is None
         if client is None:
             client = YTMusicClient(cookies_path=cookies_path)
 
         # Create services
         self._extractor = extractor or MetadataExtractorService(
-            client, download_ugc=config.download.download_ugc
+            client,
+            download_ugc=config.download.download_ugc,
+            metadata_concurrency=config.download.metadata_concurrency,
+            client_factory=(lambda: YTMusicClient(cookies_path=cookies_path))
+            if owns_client
+            else None,
         )
         self._downloader = downloader or DownloadService(
             config.download,

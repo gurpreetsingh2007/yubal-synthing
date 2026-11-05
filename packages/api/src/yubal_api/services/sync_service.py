@@ -278,6 +278,7 @@ class SyncService:
     cache_path: Path | None = None
     audio_quality: int = 0
     download_concurrency: int = 3
+    metadata_concurrency: int = 3
     _codec: AudioCodec = field(init=False)
 
     def __post_init__(self) -> None:
@@ -323,6 +324,7 @@ class SyncService:
             cache_path=self.cache_path,
             audio_quality=self.audio_quality,
             download_concurrency=self.download_concurrency,
+            metadata_concurrency=self.metadata_concurrency,
         )
         return workflow.execute()
 
@@ -356,6 +358,7 @@ class _SyncWorkflow:
     cache_path: Path | None
     audio_quality: int
     download_concurrency: int
+    metadata_concurrency: int
 
     # Workflow state
     content_info: ContentInfo | None = field(default=None, init=False)
@@ -407,6 +410,7 @@ class _SyncWorkflow:
                 ascii_filenames=self.ascii_filenames,
                 download_ugc=self.download_ugc,
                 download_concurrency=self.download_concurrency,
+                metadata_concurrency=self.metadata_concurrency,
             ),
             generate_m3u=True,
             save_cover=True,

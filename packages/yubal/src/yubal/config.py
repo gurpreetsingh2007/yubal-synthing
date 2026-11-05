@@ -39,6 +39,7 @@ class DownloadConfig:
         ytmusic_lyrics_fallback: When fetch_lyrics is enabled, fall back to
             YouTube Music's lyrics if lrclib.net has no match.
         download_concurrency: Maximum number of tracks to process at once.
+        metadata_concurrency: Maximum number of tracks to enrich at once.
         ascii_filenames: Transliterate unicode to ASCII in filenames.
     """
 
@@ -51,6 +52,7 @@ class DownloadConfig:
     ascii_filenames: bool = False
     download_ugc: bool = False
     download_concurrency: int = 3
+    metadata_concurrency: int = 3
 
 
 @dataclass(frozen=True)

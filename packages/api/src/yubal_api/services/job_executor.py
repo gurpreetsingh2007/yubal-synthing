@@ -57,6 +57,7 @@ class JobExecutor:
         cache_path: Path | None = None,
         job_timeout: float = 1800,
         download_concurrency: int = 3,
+        metadata_concurrency: int = 3,
     ) -> None:
         """Initialize the job executor.
 
@@ -91,6 +92,7 @@ class JobExecutor:
         self._cache_path = cache_path
         self._job_timeout = job_timeout
         self._download_concurrency = download_concurrency
+        self._metadata_concurrency = metadata_concurrency
 
         # Track background tasks to prevent GC during execution
         self._background_tasks: set[asyncio.Task[Any]] = set()
@@ -246,6 +248,7 @@ class JobExecutor:
                     self._cache_path,
                     self._audio_quality,
                     self._download_concurrency,
+                    self._metadata_concurrency,
                 )
                 result = await asyncio.to_thread(
                     sync_service.run,

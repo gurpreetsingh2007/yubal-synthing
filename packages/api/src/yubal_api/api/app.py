@@ -175,6 +175,7 @@ def create_services(repository: SubscriptionRepository) -> Services:
         cache_path=settings.cache_path,
         job_timeout=settings.job_timeout_seconds,
         download_concurrency=settings.download_concurrency,
+        metadata_concurrency=settings.metadata_concurrency,
     )
 
     # Create scheduler
