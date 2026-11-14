@@ -72,9 +72,10 @@ export function useVersionCheck(): { data: VersionInfo | null } {
 
     const controller = new AbortController();
 
-    fetch("https://api.github.com/repos/guillevc/yubal/releases/latest", {
-      signal: controller.signal,
-    })
+    fetch(
+      "https://api.github.com/repos/gurpreetsingh2007/yubal-synthing/releases/latest",
+      { signal: controller.signal },
+    )
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch");
         return res.json() as Promise<GitHubRelease>;

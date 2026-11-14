@@ -1,16 +1,14 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 ---
-name: ci
+name: checks
 permissions:
   contents: read
 
 on:
   push:
-    branches: [master, next]
-    paths-ignore: ["extension/**"]
+    branches: [master]
   pull_request:
-    branches: [master, next]
-    paths-ignore: ["extension/**"]
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -28,25 +26,5 @@ jobs:
         with:
           version: 2026.3.9
 
-      - uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cache/uv
-            .venv
-          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
-          restore-keys: uv-${{ runner.os }}-
-
-      - uses: actions/cache@v6
-        with:
-          path: web/node_modules
-          key: bun-${{ runner.os }}-${{ hashFiles('web/bun.lock') }}
-          restore-keys: bun-${{ runner.os }}-
-
       - run: just install
-      - run: just check test-cov
-
-      - uses: codecov/codecov-action@v7
-        with:
-          files: coverage/py.lcov,web/coverage/lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
+      - run: just check

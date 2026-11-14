@@ -1,2 +1,0 @@
-[settings]
-disable_tools = ["deno", "github:complexlogic/rsgain", "uv"]

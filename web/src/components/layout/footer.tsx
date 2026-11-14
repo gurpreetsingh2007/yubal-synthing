@@ -1,29 +1,21 @@
-import { GithubIcon, KofiIcon } from "@/components/icons";
+import { GithubIcon } from "@/components/icons";
 
 export function Footer() {
   return (
     <footer className="mx-auto max-w-5xl px-4 py-6">
       <div className="flex flex-col items-center gap-2 text-center">
         <p className="text-muted font-mono text-xs">
-          Made by{" "}
+          Independent fork of{" "}
           <a
-            href="https://github.com/guillevc"
+            href="https://github.com/guillevc/yubal"
             target="_blank"
             rel="noopener noreferrer"
             className="group text-accent hover:text-foreground"
           >
             <GithubIcon className="-mt-px inline h-4 w-4" />{" "}
-            <span className="group-hover:underline">guillevc</span>
-          </a>
-          {" · Support via "}
-          <a
-            href="https://ko-fi.com/guillevc"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group text-accent hover:text-[#FF5E5B]"
-          >
-            <KofiIcon className="-mt-px inline h-4 w-4" />{" "}
-            <span className="group-hover:underline">Ko-fi</span>
+            <span className="group-hover:underline">
+              Yubal by Guillermo Varela
+            </span>
           </a>
         </p>
         <p className="text-muted/70 font-mono text-xs">
@@ -47,7 +39,11 @@ export function Footer() {
           </a>
           {" · "}
           <a
-            href={`https://github.com/guillevc/yubal/${__IS_RELEASE__ ? `releases/tag/${__VERSION__}` : `commit/${__COMMIT_SHA__}`}`}
+            href={`https://github.com/gurpreetsingh2007/yubal-synthing/${
+              __IS_RELEASE__
+                ? `releases/tag/${__VERSION__}`
+                : `commit/${__COMMIT_SHA__}`
+            }`}
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-foreground hover:underline"

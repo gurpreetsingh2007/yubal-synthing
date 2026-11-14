@@ -188,7 +188,7 @@ export function SubscriptionsPage() {
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Configuration docs"
-              href="https://github.com/guillevc/yubal?tab=readme-ov-file#%EF%B8%8F-configuration"
+              href="https://github.com/gurpreetsingh2007/yubal-synthing#configuration"
             >
               <CircleQuestionMarkIcon size={20} className="mr-2" />
             </a>

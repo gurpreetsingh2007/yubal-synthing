@@ -138,7 +138,7 @@ export function Header() {
               </a>
             )}
             <a
-              href="https://github.com/guillevc/yubal"
+              href="https://github.com/gurpreetsingh2007/yubal-synthing"
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
@@ -211,7 +211,7 @@ export function Header() {
             </li>
             <li>
               <HeroUILink
-                href="https://github.com/guillevc/yubal"
+                href="https://github.com/gurpreetsingh2007/yubal-synthing"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-foreground w-full text-lg"

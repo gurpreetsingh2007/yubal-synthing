@@ -19,9 +19,6 @@ alias p := prod
 alias b := build
 alias doc := docs-serve
 
-# Browser extension
-mod ext 'extension'
-
 # Install (frozen lockfiles for CI)
 [doc("Install all dependencies (frozen)")]
 [group('setup')]
@@ -286,16 +283,6 @@ version VERSION:
     git add pyproject.toml packages/*/pyproject.toml uv.lock web/package.json web/bun.lock
     git diff --cached --quiet || git commit -m "chore: bump version to {{ VERSION }}"
     git tag v{{ VERSION }}
-
-[doc("Preview changelog from a ref to HEAD or another ref")]
-[group('utils')]
-changelog from to="HEAD":
-    git cliff {{ from }}..{{ to }}
-
-[doc("Write full changelog to CHANGELOG.md")]
-[group('utils')]
-changelog-md:
-    git cliff --output CHANGELOG.md
 
 # CI
 [doc("Run all checks (CI)")]
